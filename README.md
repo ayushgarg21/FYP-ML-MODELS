@@ -1,14 +1,11 @@
-# FYP-ML-MODELS
+# FYP-ML-MODELS: Predicting HbA1c from Spectral & RGB Data
 
-This repository contains machine learning models developed for my Final Year Project (FYP), focused on predicting HbA1c — a blood-based biomarker used in diabetes diagnosis — from spectroscopic data of blood samples collected using a spectrometer.
+This repository contains a collection of machine learning models developed as part of my Final Year Project (FYP) to predict HbA1c — a critical biomarker for diabetes — from spectral data of blood samples. It also includes reverse-engineered pipelines to predict full spectral curves from RGB pixel values, enabling less -invasive blood analysis using images, rather than any spectrometer or medical device.
 
-The repository includes:
+## Features
 
-  Models for HbA1c prediction from spectral data
+- Predict HbA1c from full-spectrum absorbance data
+- Reverse-engineer RGB values from spectral inputs
+- Deep learning model to predict spectral data from RGB
 
-  An algorithm for reverse-engineering RGB pixel values from spectral data (developed due to limited access to new blood samples)
 
-  A machine learning model that predicts spectral data directly from RGB values
-
-⚠ Note: These are not the final or best-performing models, as the main results are currently under embargo pending publication.
-These codes are for google colab use, but can be updated for other uses.
