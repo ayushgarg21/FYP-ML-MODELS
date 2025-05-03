@@ -11,3 +11,4 @@ The repository includes:
   A machine learning model that predicts spectral data directly from RGB values
 
 ⚠ Note: These are not the final or best-performing models, as the main results are currently under embargo pending publication.
+These codes are for google colab use, but can be updated for other uses.
