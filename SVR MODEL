@@ -1,3 +1,11 @@
+"""
+SVR Model for HbA1c Prediction from Spectral Data
+Author: Ayush Garg
+Description: This script preprocesses spectral absorbance data and applies SVR regression
+to predict HbA1c levels from filtered and scaled spectral features.
+"""
+
+
 import pandas as pd
 import numpy as np
 from sklearn.svm import SVR
