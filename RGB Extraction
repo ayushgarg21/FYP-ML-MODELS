@@ -1,0 +1,72 @@
+import numpy as np
+import pandas as pd
+from scipy.interpolate import interp1d
+from colour.colorimetry import SDS_ILLUMINANTS
+from google.colab import files
+
+
+uploaded = files.upload()
+file_name = list(uploaded.keys())[0]
+data = pd.read_excel(file_name)
+
+wavelengths = data.iloc[:, 0].values
+samples = data.iloc[:, 1:].values
+sample_names = data.columns[1:]
+
+visible_mask = (wavelengths >= 380) & (wavelengths <= 780)
+wl_visible = wavelengths[visible_mask]
+wavelength_grid = np.linspace(380, 780, 81)  # 5 nm intervals
+
+
+illuminant_sd = SDS_ILLUMINANTS["D65"]
+illuminant_values = interp1d(
+    illuminant_sd.wavelengths, illuminant_sd.values, bounds_error=False, fill_value="extrapolate"
+)(wavelength_grid)
+
+def gaussian(x, mu, sigma):
+    return np.exp(-((x - mu)**2) / (2 * sigma**2))
+
+R_sens = gaussian(wavelength_grid, 600, 50)
+G_sens = gaussian(wavelength_grid, 545, 40)
+B_sens = gaussian(wavelength_grid, 465, 35)
+
+
+def spectral_to_realistic_rgb(wl, absorbance):
+    
+    absorb_interp = interp1d(wl, absorbance, bounds_error=False, fill_value="extrapolate")(wavelength_grid)
+    
+   
+    reflectance = np.exp(-absorb_interp)
+    reflectance /= reflectance.max()  # realistic normalization
+    
+   
+    R = np.trapz(reflectance * illuminant_values * R_sens, wavelength_grid)
+    G = np.trapz(reflectance * illuminant_values * G_sens, wavelength_grid)
+    B = np.trapz(reflectance * illuminant_values * B_sens, wavelength_grid)
+
+    
+    R_white = np.trapz(illuminant_values * R_sens, wavelength_grid)
+    G_white = np.trapz(illuminant_values * G_sens, wavelength_grid)
+    B_white = np.trapz(illuminant_values * B_sens, wavelength_grid)
+
+   
+    RGB = np.array([R / R_white, G / G_white, B / B_white])
+    
+   
+    RGB_gamma = np.clip(RGB, 0, 1) ** (1/2.2)
+    
+    return RGB_gamma
+
+# Convert all samples
+rgb_results = np.array([
+    spectral_to_realistic_rgb(wavelengths, samples[:, i])
+    for i in range(samples.shape[1])
+])
+
+rgb_df = pd.DataFrame(rgb_results, columns=['R', 'G', 'B'], index=sample_names)
+print(rgb_df.head())
+
+# Save to Excel
+output_file = 'realistic_blood_rgb.xlsx'
+rgb_df.to_excel(output_file)
+files.download(output_file)
