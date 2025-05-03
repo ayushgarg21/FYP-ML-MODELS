@@ -1,0 +1,117 @@
+import pandas as pd
+import numpy as np
+from sklearn.svm import SVR
+from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import joblib
+import matplotlib.pyplot as plt
+from google.colab import files
+
+# Step 1: Upload your file
+uploaded = files.upload()
+
+# Step 2: Load the Excel file
+file_path = list(uploaded.keys())[0]  # Automatically takes the uploaded file name
+sheet_data = pd.read_excel(file_path, sheet_name='Sheet1')
+
+# Step 3: Filter out saturated data
+sheet_data['Wavelength'] = pd.to_numeric(sheet_data['Wavelength'], errors='coerce')
+sheet_data = sheet_data.dropna(subset=['Wavelength'])
+filtered_data = sheet_data[(sheet_data['Wavelength'] < 200) | (sheet_data['Wavelength'] > 284)]
+
+# Step 4: Prepare the data
+num_hba1c_5_8 = 96
+num_hba1c_6_3 = 96
+num_hba1c_6_6 = 93
+num_hba1c_7_1 = 93
+
+y_hba1c_values = np.array([5.8] * num_hba1c_5_8 + [6.3] * num_hba1c_6_3 + [6.6] * num_hba1c_6_6 + [7.1] * num_hba1c_7_1)
+X = filtered_data.iloc[:, 1:(1 + num_hba1c_5_8 + num_hba1c_6_3 + num_hba1c_6_6 + num_hba1c_7_1)].values.T
+
+# Step 5: Handle missing values
+X = np.nan_to_num(X, nan=0.0)
+
+# Step 6: Scale the data
+scaler_X = StandardScaler()
+scaler_y = MinMaxScaler()
+X_scaled = scaler_X.fit_transform(X)
+y_scaled = scaler_y.fit_transform(y_hba1c_values.reshape(-1, 1)).flatten()
+
+# Step 7: Apply PCA for Dimensionality Reduction
+pca = PCA(n_components=0.95)
+X_pca = pca.fit_transform(X_scaled)
+print(f"Original features: {X_scaled.shape[1]}, Reduced features: {X_pca.shape[1]}")
+
+# Step 8: Train/Test/Validation Split
+X_train, X_temp, y_train, y_temp = train_test_split(X_pca, y_scaled, test_size=0.4, random_state=42, stratify=y_scaled)
+X_test, X_val, y_test, y_val = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42, stratify=y_temp)
+
+print(f"Training set size: {len(X_train)}")
+print(f"Testing set size: {len(X_test)}")
+print(f"Validation set size: {len(X_val)}")
+
+# Step 9: Optimize SVR Model with Regularization
+param_grid = {
+    'C': [0.01, 0.1, 1],
+    'gamma': [0.0001, 0.001, 0.01],
+    'epsilon': [0.01, 0.1, 0.2]
+}
+grid_search = GridSearchCV(SVR(kernel='rbf'), param_grid, cv=5, scoring='neg_mean_squared_error', verbose=1)
+grid_search.fit(X_train, y_train)
+
+# Best model from GridSearch
+best_svr = grid_search.best_estimator_
+print(f"Best SVR Parameters: {grid_search.best_params_}")
+
+# Step 10: Evaluate the optimized SVR model
+y_pred_train = best_svr.predict(X_train)
+y_pred_test = best_svr.predict(X_test)
+y_pred_val = best_svr.predict(X_val)
+
+# Calculate metrics
+mse_train = mean_squared_error(y_train, y_pred_train)
+mse_test = mean_squared_error(y_test, y_pred_test)
+mse_val = mean_squared_error(y_val, y_pred_val)
+r2_train = r2_score(y_train, y_pred_train)
+r2_test = r2_score(y_test, y_pred_test)
+r2_val = r2_score(y_val, y_pred_val)
+
+print(f"Train MSE: {mse_train}")
+print(f"Test MSE: {mse_test}")
+print(f"Validation MSE: {mse_val}")
+print(f"Train R²: {r2_train}")
+print(f"Test R²: {r2_test}")
+print(f"Validation R²: {r2_val}")
+
+# Step 11: Visualize Predictions
+plt.scatter(y_train, y_pred_train, label='Training Data', color='blue', alpha=0.6)
+plt.scatter(y_test, y_pred_test, label='Test Data', color='red', alpha=0.6)
+plt.scatter(y_val, y_pred_val, label='Validation Data', color='green', alpha=0.6)
+plt.plot([min(y_scaled), max(y_scaled)], [min(y_scaled), max(y_scaled)], '--k', label='Ideal')
+plt.xlabel('Actual HbA1c Value (Scaled)')
+plt.ylabel('Predicted HbA1c Value (Scaled)')
+plt.legend()
+plt.title('Actual vs Predicted HbA1c Values')
+plt.show()
+
+# Step 12: Residual Analysis
+residuals_test = y_test - y_pred_test
+residuals_val = y_val - y_pred_val
+plt.figure(figsize=(8, 6))
+plt.scatter(y_test, residuals_test, color='red', alpha=0.6, label='Test Data')
+plt.scatter(y_val, residuals_val, color='green', alpha=0.6, label='Validation Data')
+plt.axhline(0, color='black', linestyle='--', linewidth=2)
+plt.xlabel('Actual HbA1c Value (Scaled)')
+plt.ylabel('Residuals (Actual - Predicted)')
+plt.title('Residual Analysis of SVR Model')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# Step 13: Save the SVR model and scaler
+joblib.dump(best_svr, 'svr_rbf_model_with_pca.pkl')
+joblib.dump(scaler_X, 'scaler_X.pkl')
+joblib.dump(scaler_y, 'scaler_y.pkl')
+print("Optimized SVR model and scalers saved!")
